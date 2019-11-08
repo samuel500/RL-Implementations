@@ -42,6 +42,8 @@ def evaluate(model, n=1, disp=False):
             dist, value = model(obs)
 
             action = dist.sample()
+            # action = tf.tanh(action)
+
             action = list(np.array(action)[0])
             # action = np.argmax(action[0].numpy())
 
@@ -87,18 +89,16 @@ class ActorCritic(Model):
                 ReLU(),
                 Dense(128),
                 ReLU(),
-                Dense(action_dim)
+                Dense(action_dim),
+                Activation('tanh')
             ]
         )
-        self.std = 1.
+        self.std = 0.6
 
     def call(self, x):
         value = self.critic(x)
-        mu = self.actor(x) #[0]
-        # print(value)
-        # print(mu)
-        dist = tfd.Normal(scale=self.std, loc=mu) #?
-        #....
+        mu = self.actor(x) 
+        dist = tfd.Normal(scale=self.std, loc=mu)
         return dist, value
 
 
@@ -138,11 +138,11 @@ def get_exp(env, batch_size=3000):
     while True:
 
         dist, value = model(obs)
-        #env.render()
 
         action = dist.sample()
-        # action = np.argmax(action[0].numpy())
+
         action = list(np.array(action)[0])
+
 
         try:        
             next_obs, rew, done, _ = env.step(action)
@@ -219,26 +219,18 @@ def train(ppo_epochs, mini_batch_size, observations, actions, log_probs, returns
 
         for obs, action, old_log_probs, return_, advantage in prep_data(mini_batch_size, observations, actions, log_probs, returns, advantages):
             with tf.GradientTape() as tape:
-                # print('obs', obs)
                 dist, value = model(obs)
                 entropy = tf.math.reduce_mean(dist.entropy())
-                # print('act', action)
-                # print('dist', dist.sample())
+
                 new_log_probs = dist.log_prob(action)
-                # print('new_log_probs', new_log_probs)
                 ratio = tf.math.exp((new_log_probs - old_log_probs))
-                # print('ratio', ratio)
                 rat_x_adv = ratio * advantage
                 min_adv = tf.clip_by_value(ratio, 1.0 - clip_ratio, 1.0 + clip_ratio) * advantage
 
-                # print('1', surr1)
-                # print('2', surr2)
                 actor_loss = - tf.math.reduce_mean(tf.minimum(rat_x_adv, min_adv))
                 critic_loss = tf.math.reduce_mean(tf.square(return_ - value))
-                # print(actor_loss, critic_loss)
-                # print(entropy)
+
                 loss = 0.5 * critic_loss + actor_loss - 0.005 * entropy
-                # raise
 
             gradients = tape.gradient(loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
