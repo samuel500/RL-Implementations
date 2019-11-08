@@ -115,7 +115,8 @@ class ExperienceBuffer():
         return np.array(random.sample(self.buffer, k=sample_size))
 
 
-def get_exp(env, batch_size=3000):
+def get_exp(env, batch_size=5000):
+
 
     log_probs = []
     values = []
@@ -135,7 +136,13 @@ def get_exp(env, batch_size=3000):
     print("START")
 
     steps = 0
+    st = time()
+
+    it_n = 0
+
+
     while True:
+
 
         dist, value = model(obs)
 
@@ -175,6 +182,10 @@ def get_exp(env, batch_size=3000):
             obs = obs.reshape((1, *obs.shape))
 
         if steps > batch_size:
+            print('T:', time()-st)
+            st = time()
+
+            print(it_n)
             _, value = model(next_obs)
             values += [value]
             values = np.array(values)
@@ -182,7 +193,7 @@ def get_exp(env, batch_size=3000):
             actions = np.vstack(actions)
             observations = np.array(observations)
             returns, advantage = compute_advantage(rewards, masks, values)
-            mini_batch_size  = 30
+            mini_batch_size  = 40
 
             train(5, mini_batch_size, observations, actions, log_probs, returns, advantage)
 
@@ -199,6 +210,7 @@ def get_exp(env, batch_size=3000):
 
             eval_res = evaluate(model, disp=True)
             print(eval_res)
+            it_n += 1
 
         steps += 1
 
